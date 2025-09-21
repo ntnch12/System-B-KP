@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System B-KP</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='po.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Detect Basil Leaf</h1>
+
+    <form id="upload-form" enctype="multipart/form-data">
+      <input type="file" id="file-input" name="file" accept="image/*" required>
+      <button type="button" class="upload-btn" id="upload-btn">+</button>
+    </form>
+
+    <div id="preview"></div>
+
+    <div id="results">
+      <h2> Plant: <span id="plant-name">-</span></h2>
+      <p id="disease-line"><strong>DISEASE:</strong> <span id="disease-name">-</span></p>
+      <p id="cause-line"><strong>CAUSE:</strong> <span id="cause">-</span></p>
+      <p id="treatment-line"><strong>TREATMENT:</strong> <span id="treatment">-</span></p>
+
+      <div id="related-section">
+        <h3>RELATED DISEASE</h3>
+        <div id="related"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById("file-input");
+    const uploadBtn = document.getElementById("upload-btn");
+    const preview = document.getElementById("preview");
+    const relatedBox = document.getElementById("related");
+    const results = document.getElementById("results");
+
+    let previousPreviewUrl = null;
+
+    const diseaseImages = {
+      "Another Disease": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSeOS5D1Nyf3Hge_LEK6tOYU8fXUiU6yisMtg&ss",
+      "normal": "https://www.seriouseats.com/thmb/PQKaXIbKiiOwVdbGB7UFGrvz-r4=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/__opt__aboutcom__coeus__resources__content_migration__serious_eats__seriouseats.com__images__2014__09__thai-basil-flickr-alyss-0ded820540d3471c933029bf62e2d9da.jpg",
+      "Raged Stunt Disease": "https://tse4.mm.bing.net/th/id/OIP.3Qs0HeK5egGFK_hxZTL6HAHaJ4?r=0&cb=thfvnextucfimg=1&rs=1&pid=ImgDetMain&o=7&rm=3"
+    };
+
+    uploadBtn.addEventListener("click", () => fileInput.click());
+
+    function resetUI() {
+      if (previousPreviewUrl) {
+        try { URL.revokeObjectURL(previousPreviewUrl); } catch (e) {}
+        previousPreviewUrl = null;
+      }
+      preview.innerHTML = "";
+      relatedBox.innerHTML = "";
+      results.innerHTML = `
+        <h2> Plant: <span id="plant-name">-</span></h2>
+        <p id="disease-line"><strong>DISEASE:</strong> <span id="disease-name">-</span></p>
+        <p id="cause-line"><strong>CAUSE:</strong> <span id="cause">-</span></p>
+        <p id="treatment-line"><strong>TREATMENT:</strong> <span id="treatment">-</span></p>
+        <div id="related-section">
+          <h3>RELATED DISEASE</h3>
+          <div id="related"></div>
+        </div>
+      `;
+    }
+
+      fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    resetUI();
+
+    previousPreviewUrl = URL.createObjectURL(file);
+    preview.innerHTML = `<img src="${previousPreviewUrl}" alt="preview" />`;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    uploadBtn.disabled = true;
+
+    try {
+      const res = await fetch("/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      console.log("API Response:", data);
+
+      const diseaseName = data?.predictions?.[0]?.class || "Unknown";
+      const plantName = (diseaseName === "Another Disease") ? "Another Plant" : "Basil";
+
+      if (plantName === "Another Plant") {
+        results.innerHTML = `
+          <h2> Plant: ${plantName}</h2>
+          <p>Apologize, This type of plant is not in data yet.</p>
+        `;
+        return;
+      }
+
+      if (diseaseName.toLowerCase() === "normal") {
+        results.innerHTML = `
+          <h2> Plant: ${plantName}</h2>
+          <p><strong>DISEASE:</strong> ${diseaseName}</p>
+          <div style="text-align:center; margin-top:20px;">
+            <p> Congrats, You've been taking care of your plant really well.</p>
+            <div style="font-size:50px;">😊</div>
+          </div>
+        `;
+        return;
+      }
+
+      let cause = "-";
+      let treatment = "-";
+
+      if (diseaseName.toLowerCase() === "raged stunt disease") {
+  cause = "Aphids / Thrips virus environment";
+  treatment = "Cut off diseased leaves shoots or spray with mild soapy water or herbal extracts.";
+
+  results.innerHTML = `
+    <h2> Plant: ${plantName}</h2>
+    <p><strong>DISEASE:</strong> ${diseaseName}</p>
+    <p><strong>CAUSE:</strong> ${cause}</p>
+    <p><strong>TREATMENT:</strong> ${treatment}</p>
+  `;
+  return; 
+
+} else {
+ 
+  results.innerHTML = `
+    <h2> Plant: ${plantName}</h2>
+    <p><strong>DISEASE:</strong> ${diseaseName}</p>
+
+    <div id="related"></div>
+  `;
+}
+
+      const related = document.getElementById("related");
+      data?.predictions?.slice(1, 4).forEach(p => {
+        const imgUrl = diseaseImages[p.class] ||
+          'https://d8iqbmvu05s9c.cloudfront.net/ajprhqgqg1otf7d5sm7u3brf27gv';
+        related.innerHTML += `
+          <div class="related-item">
+            <img src="${imgUrl}" alt="${p.class}" />
+            <p>${p.class}</p>
+          </div>
+        `;
+      });
+
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      uploadBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
